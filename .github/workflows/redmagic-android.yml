@@ -63,7 +63,7 @@ jobs:
               "client_info": {
                 "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
                 "android_client_info": {
-                  "package_name": "com.pocketpalai"
+                  "package_name": "com.pocketpalai.redmagic"
                 }
               },
               "api_key": [{
@@ -92,6 +92,7 @@ jobs:
         working-directory: android
         run: |
           ./gradlew assembleProdDebug \
+            -PredmagicBuild=true \
             -PreactNativeArchitectures=arm64-v8a \
             --stacktrace | tee redmagic-build.log
 

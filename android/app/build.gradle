@@ -167,7 +167,11 @@ android {
     productFlavors {
         prod {
             dimension "distribution"
-            // applicationId stays as defaultConfig: com.pocketpalai
+            // Normal PocketPal keeps com.pocketpalai.
+            // Our REDMAGIC CI build installs side-by-side as com.pocketpalai.redmagic.
+            if (project.hasProperty("redmagicBuild")) {
+                applicationIdSuffix ".redmagic"
+            }
         }
         e2e {
             dimension "distribution"
