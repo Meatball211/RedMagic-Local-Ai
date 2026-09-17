@@ -1,0 +1,109 @@
+name: REDMAGIC Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - redmagic-dev
+
+permissions:
+  contents: read
+
+jobs:
+  build-redmagic:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout redmagic-dev
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22.21.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.21.0'
+          cache: yarn
+
+      - name: Install Yarn 1.22.22
+        run: npm install -g yarn@1.22.22
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Install PocketPal dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Install exact Android SDK components
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.3.13750724" \
+            "cmake;3.22.1"
+
+      - name: Create dummy google-services.json
+        run: |
+          cat > android/app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "redmagic-local-ai",
+              "storage_bucket": "redmagic-local-ai.appspot.com"
+            },
+            "client": [{
+              "client_info": {
+                "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                "android_client_info": {
+                  "package_name": "com.pocketpalai"
+                }
+              },
+              "api_key": [{
+                "current_key": "dummy-redmagic-ci-key"
+              }]
+            }]
+          }
+          JSON
+
+      - name: Create dummy environment
+        run: |
+          cat > .env <<'EOFENV'
+          FIREBASE_FUNCTIONS_URL=https://dummy.invalid
+          SUPABASE_URL=https://dummy.invalid
+          SUPABASE_ANON_KEY=dummy
+          PALSHUB_API_BASE_URL=https://dummy.invalid
+          APP_URL=pocketpal://app
+          ENABLE_PALSHUB_INTEGRATION=true
+          ENABLE_AUTHENTICATION=true
+          ENABLE_OFFLINE_MODE=true
+          GOOGLE_IOS_CLIENT_ID=dummy
+          GOOGLE_WEB_CLIENT_ID=dummy
+          EOFENV
+
+      - name: Build REDMAGIC arm64 APK
+        working-directory: android
+        run: |
+          ./gradlew assembleProdDebug \
+            -PreactNativeArchitectures=arm64-v8a \
+            --stacktrace | tee redmagic-build.log
+
+      - name: Show APK contents
+        run: |
+          unzip -l android/app/build/outputs/apk/prod/debug/*.apk | \
+            grep -E 'lib/arm64-v8a|librnllama|libllama|libggml' || true
+
+      - name: Verify APK alignment
+        run: |
+          APK=$(find android/app/build/outputs/apk/prod/debug -name '*.apk' | head -n 1)
+          zipalign -c -P 16 -v 4 "$APK" || true
+
+      - name: Upload REDMAGIC APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: redmagic-11-pro-apk
+          path: |
+            android/app/build/outputs/apk/prod/debug/*.apk
+            android/redmagic-build.log
